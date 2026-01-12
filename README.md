@@ -1,6 +1,6 @@
 <h2>CloudDesk</h2>
 
-CloudDesk is a small, demo-ready **serverless IT ticketing platform** built as a **2-day proof of concept** on AWS.
+CloudDesk is a small, demo-ready **serverless IT ticketing platform** built and deployed on AWS.
 The goal is to demonstrate real cloud engineering skills, not to ship a full product.
 
 This project focuses on authentication, role-based access, serverless APIs, and NoSQL design using AWS-native services. 
