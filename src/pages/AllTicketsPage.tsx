@@ -9,7 +9,7 @@ type FilterType = 'all' | TicketStatus;
 
 export function AllTicketsPage() {
   const { user } = useAuth();
-  const { tickets, updateTicketStatus, assignTicket } = useTickets();
+  const { tickets, updateTicketStatus, assignTicket, addComment } = useTickets();
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -29,8 +29,11 @@ export function AllTicketsPage() {
     }
   };
 
-  const handleStatusChange = async (ticketId: string, status: TicketStatus) => {
+  const handleStatusChange = async (ticketId: string, status: TicketStatus, note?: string) => {
     await updateTicketStatus(ticketId, status);
+    if (note && note.trim()) {
+      await addComment(ticketId, note.trim());
+    }
   };
 
   const filters: { key: FilterType; label: string }[] = [
@@ -77,14 +80,14 @@ export function AllTicketsPage() {
       <div className="tickets-list">
         {filteredTickets.length > 0 ? (
           filteredTickets.map((ticket) => (
-            <TicketCard
-              key={ticket.id}
-              ticket={ticket}
-              isAgent
-              onAssign={() => handleAssignToMe(ticket.id)}
-              onStatusChange={(status) => handleStatusChange(ticket.id, status)}
-            />
-          ))
+              <TicketCard
+                key={ticket.id}
+                ticket={ticket}
+                isAgent
+                onAssign={() => handleAssignToMe(ticket.id)}
+                onStatusChange={(status, note) => handleStatusChange(ticket.id, status, note)}
+              />
+            ))
         ) : (
           <div className="empty-state card">
             <Filter size={48} className="empty-icon" />

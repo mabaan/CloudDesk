@@ -16,7 +16,7 @@ type FilterType = 'all' | TicketStatus;
 
 export function AgentDashboard() {
   const { user } = useAuth();
-  const { tickets, updateTicketStatus, assignTicket } = useTickets();
+  const { tickets, updateTicketStatus, assignTicket, addComment } = useTickets();
   const [filter, setFilter] = useState<FilterType>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -46,8 +46,11 @@ export function AgentDashboard() {
     }
   };
 
-  const handleStatusChange = async (ticketId: string, status: TicketStatus) => {
+  const handleStatusChange = async (ticketId: string, status: TicketStatus, note?: string) => {
     await updateTicketStatus(ticketId, status);
+    if (note && note.trim()) {
+      await addComment(ticketId, note.trim());
+    }
   };
 
   const filters: { key: FilterType; label: string; count: number }[] = [
@@ -141,7 +144,7 @@ export function AgentDashboard() {
                 ticket={ticket}
                 isAgent
                 onAssign={() => handleAssignToMe(ticket.id)}
-                onStatusChange={(status) => handleStatusChange(ticket.id, status)}
+                onStatusChange={(status, note) => handleStatusChange(ticket.id, status, note)}
               />
             ))
           ) : (

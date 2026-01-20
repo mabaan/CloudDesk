@@ -20,7 +20,7 @@ interface TicketCardProps {
   ticket: Ticket;
   isAgent?: boolean;
   onAssign?: () => void;
-  onStatusChange?: (status: TicketStatus) => void;
+  onStatusChange?: (status: TicketStatus, note?: string) => void;
 }
 
 const statusConfig: Record<TicketStatus, { label: string; class: string; icon: ReactNode }> = {
@@ -49,6 +49,9 @@ export function TicketCard({ ticket, isAgent, onAssign, onStatusChange }: Ticket
   useAuth();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [showResolutionNote, setShowResolutionNote] = useState(false);
+  const [resolutionNote, setResolutionNote] = useState('');
+  const [pendingStatus, setPendingStatus] = useState<TicketStatus | null>(null);
 
   const status = statusConfig[ticket.status];
   const priority = priorityConfig[ticket.priority];
@@ -67,10 +70,33 @@ export function TicketCard({ ticket, isAgent, onAssign, onStatusChange }: Ticket
   };
 
   const handleStatusChange = (newStatus: TicketStatus) => {
+    if (isAgent && newStatus === 'resolved') {
+      setPendingStatus('resolved');
+      setShowStatusMenu(false);
+      setShowResolutionNote(true);
+      return;
+    }
+
     if (onStatusChange) {
       onStatusChange(newStatus);
     }
     setShowStatusMenu(false);
+  };
+
+  const handleSubmitResolution = () => {
+    if (pendingStatus && onStatusChange) {
+      const note = resolutionNote.trim();
+      onStatusChange(pendingStatus, note);
+    }
+    setShowResolutionNote(false);
+    setPendingStatus(null);
+    setResolutionNote('');
+  };
+
+  const handleCancelResolution = () => {
+    setShowResolutionNote(false);
+    setPendingStatus(null);
+    setResolutionNote('');
   };
 
   return (
@@ -126,7 +152,7 @@ export function TicketCard({ ticket, isAgent, onAssign, onStatusChange }: Ticket
           <div className="ticket-details">
             <div className="detail-item">
               <span className="detail-label">Priority</span>
-              <span className={`detail-value ${priority.class}`}>{priority.label}</span>
+              <span className={`detail-value priority-tag ${priority.class}`}>{priority.label}</span>
             </div>
             <div className="detail-item">
               <span className="detail-label">Category</span>
@@ -197,6 +223,33 @@ export function TicketCard({ ticket, isAgent, onAssign, onStatusChange }: Ticket
                   </div>
                 )}
               </div>
+              {showResolutionNote && (
+                <div className="resolution-note card card-hover animate-slide-up">
+                  <div className="resolution-note-header">
+                    <h5>Resolution note</h5>
+                    <span className="resolution-hint">Share what fixed the issue</span>
+                  </div>
+                  <textarea
+                    className="input textarea"
+                    rows={4}
+                    placeholder="Add a short paragraph so the requester and other agents know what was done..."
+                    value={resolutionNote}
+                    onChange={(e) => setResolutionNote(e.target.value)}
+                  />
+                  <div className="resolution-actions">
+                    <button className="btn btn-ghost" onClick={handleCancelResolution}>
+                      Cancel
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      disabled={resolutionNote.trim().length < 10}
+                      onClick={handleSubmitResolution}
+                    >
+                      Save and Resolve
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -204,12 +257,15 @@ export function TicketCard({ ticket, isAgent, onAssign, onStatusChange }: Ticket
 
       <style>{`
         .ticket-card {
-          overflow: hidden;
+          position: relative;
+          z-index: 0;
+          overflow: visible;
           transition: all var(--transition-base);
         }
 
         .ticket-card.expanded {
           border-color: var(--border-strong);
+          z-index: var(--z-dropdown);
         }
 
         .ticket-header {
@@ -254,6 +310,44 @@ export function TicketCard({ ticket, isAgent, onAssign, onStatusChange }: Ticket
         .priority-critical { 
           background: var(--error-600);
           box-shadow: 0 0 8px var(--error-500);
+        }
+
+        .priority-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: var(--space-2);
+          padding: 8px 12px;
+          border-radius: var(--radius-full);
+          font-weight: 700;
+          text-transform: capitalize;
+          letter-spacing: 0.01em;
+          border: 1px solid transparent;
+          background: var(--surface-2);
+        }
+
+        .priority-tag.priority-low {
+          color: var(--success-400);
+          background: rgba(34, 197, 94, 0.12);
+          border-color: rgba(34, 197, 94, 0.35);
+        }
+
+        .priority-tag.priority-medium {
+          color: var(--warning-400);
+          background: rgba(245, 158, 11, 0.12);
+          border-color: rgba(245, 158, 11, 0.35);
+        }
+
+        .priority-tag.priority-high {
+          color: white;
+          background: rgba(239, 68, 68, 0.9);
+          border-color: rgba(239, 68, 68, 0.45);
+        }
+
+        .priority-tag.priority-critical {
+          color: white;
+          background: linear-gradient(135deg, #ef4444, #db2777);
+          border-color: rgba(219, 39, 119, 0.5);
+          box-shadow: 0 0 10px rgba(219, 39, 119, 0.4);
         }
 
         .ticket-subject {
@@ -393,13 +487,18 @@ export function TicketCard({ ticket, isAgent, onAssign, onStatusChange }: Ticket
 
         .ticket-actions {
           display: flex;
+          flex-direction: column;
           gap: var(--space-3);
           padding-top: var(--space-4);
           border-top: 1px solid var(--border-subtle);
+          position: relative;
+          z-index: var(--z-dropdown);
         }
 
         .status-dropdown {
           position: relative;
+          z-index: var(--z-dropdown);
+          align-self: flex-start;
         }
 
         .status-menu {
@@ -407,14 +506,46 @@ export function TicketCard({ ticket, isAgent, onAssign, onStatusChange }: Ticket
           top: 100%;
           left: 0;
           margin-top: var(--space-2);
-          min-width: 160px;
+          min-width: 200px;
           padding: var(--space-2);
-          background: var(--surface-glass);
+          background: rgba(6, 10, 20, 0.92);
           backdrop-filter: blur(20px);
           border: 1px solid var(--border-default);
           border-radius: var(--radius-lg);
           box-shadow: var(--shadow-lg);
           z-index: var(--z-dropdown);
+        }
+
+        .resolution-note {
+          width: 100%;
+          padding: var(--space-5);
+          border: 1px solid var(--border-default);
+          background: rgba(6, 10, 20, 0.92);
+          box-shadow: var(--shadow-lg);
+        }
+
+        .resolution-note-header {
+          display: flex;
+          align-items: baseline;
+          gap: var(--space-2);
+          margin-bottom: var(--space-3);
+        }
+
+        .resolution-note-header h5 {
+          font-size: var(--text-sm);
+          color: var(--text-primary);
+        }
+
+        .resolution-hint {
+          font-size: var(--text-xs);
+          color: var(--text-tertiary);
+        }
+
+        .resolution-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: var(--space-3);
+          margin-top: var(--space-3);
         }
 
         .status-option {

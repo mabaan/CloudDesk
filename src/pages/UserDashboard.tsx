@@ -19,7 +19,7 @@ export function UserDashboard() {
 
   // Get user's tickets
   const userTickets = tickets.filter((t) => t.createdBy === user?.id);
-  const recentTickets = tickets.slice(0, 5); // Show recent for demo
+  const recentTickets = userTickets.slice(0, 5); // Show recent for this user
 
   // Calculate stats
   const stats = {
