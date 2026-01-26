@@ -1,57 +1,65 @@
-import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { useTickets } from '../contexts/TicketContext';
-import { TicketCard } from '../components/TicketCard';
-import { Ticket, Search } from 'lucide-react';
+import React from "react";
+import { useTickets } from "../contexts/TicketContext";
+import { TicketCard } from "../components/TicketCard";
+import { Ticket, Search, Loader2 } from "lucide-react";
 
 export function MyTicketsPage() {
-    const { user } = useAuth();
-    const { tickets } = useTickets();
-    const [searchQuery, setSearchQuery] = React.useState('');
+  const { tickets, isLoading } = useTickets();
+  const [searchQuery, setSearchQuery] = React.useState("");
 
-    // Get user's tickets
-    const userTickets = tickets
-        .filter((t) => t.createdBy === user?.id)
-        .filter(
-            (t) =>
-                searchQuery === '' ||
-                t.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                t.id.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+  const filteredTickets = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return tickets;
 
-    return (
-        <div className="my-tickets-page">
-            <div className="page-header">
-                <h2 className="heading-3">My Tickets</h2>
-                <div className="search-box">
-                    <Search size={18} className="search-icon" />
-                    <input
-                        type="text"
-                        className="search-input"
-                        placeholder="Search your tickets..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </div>
-            </div>
+    return tickets.filter((t) => {
+      const subject = (t.subject || "").toLowerCase();
+      const id = (t.id || "").toLowerCase();
+      return subject.includes(q) || id.includes(q);
+    });
+  }, [tickets, searchQuery]);
 
-            <div className="tickets-list">
-                {userTickets.length > 0 ? (
-                    userTickets.map((ticket) => <TicketCard key={ticket.id} ticket={ticket} />)
-                ) : (
-                    <div className="empty-state card">
-                        <Ticket size={48} className="empty-icon" />
-                        <h4>No tickets found</h4>
-                        <p>
-                            {searchQuery
-                                ? 'Try adjusting your search query'
-                                : "You haven't submitted any tickets yet."}
-                        </p>
-                    </div>
-                )}
-            </div>
+  return (
+    <div className="my-tickets-page">
+      <div className="page-header">
+        <h2 className="heading-3">My Tickets</h2>
 
-            <style>{`
+        <div className="search-box">
+          <Search size={18} className="search-icon" />
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search your tickets."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="tickets-list">
+        {isLoading ? (
+          <div className="empty-state card">
+            <Loader2 size={40} className="empty-icon animate-spin" />
+            <h4>Loading tickets</h4>
+            <p>Please wait.</p>
+          </div>
+        ) : filteredTickets.length > 0 ? (
+          filteredTickets.map((ticket) => (
+            <TicketCard key={ticket.id} ticket={ticket} />
+          ))
+        ) : (
+          <div className="empty-state card">
+            <Ticket size={48} className="empty-icon" />
+            <h4>No tickets found</h4>
+            <p>
+              {searchQuery.trim()
+                ? "Try adjusting your search query"
+                : "You have not submitted any tickets yet."}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <style>{`
         .my-tickets-page {
           display: flex;
           flex-direction: column;
@@ -114,8 +122,8 @@ export function MyTicketsPage() {
           align-items: center;
           justify-content: center;
           text-align: center;
-          padding: var(--space-12);
-          gap: var(--space-4);
+          gap: var(--space-3);
+          padding: var(--space-10);
         }
 
         .empty-icon {
@@ -123,21 +131,23 @@ export function MyTicketsPage() {
         }
 
         .empty-state h4 {
-          font-size: var(--text-lg);
+          margin: 0;
           color: var(--text-primary);
+          font-weight: 600;
         }
 
         .empty-state p {
-          color: var(--text-tertiary);
+          margin: 0;
+          color: var(--text-secondary);
           font-size: var(--text-sm);
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 520px) {
           .search-box {
             width: 100%;
           }
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }

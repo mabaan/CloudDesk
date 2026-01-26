@@ -5,7 +5,6 @@ import { useTickets } from '../contexts/TicketContext';
 import type { TicketFormData, TicketPriority, TicketCategory } from '../types';
 import {
   Send,
-
   Monitor,
   Wifi,
   Key,
@@ -18,8 +17,11 @@ import {
 export function NewTicketPage() {
   const navigate = useNavigate();
   const { createTicket } = useTickets();
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string>('');
+
   const [formData, setFormData] = useState<TicketFormData>({
     subject: '',
     description: '',
@@ -44,16 +46,24 @@ export function NewTicketPage() {
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setError('');
     setIsSubmitting(true);
 
     try {
-      await createTicket(formData);
+      await createTicket({
+        subject: formData.subject.trim(),
+        description: formData.description.trim(),
+        priority: formData.priority,
+        category: formData.category,
+      });
+
       setIsSuccess(true);
       setTimeout(() => {
         navigate('/dashboard');
-      }, 2000);
-    } catch (error) {
-      console.error('Failed to create ticket:', error);
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to create ticket:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create ticket');
     } finally {
       setIsSubmitting(false);
     }
@@ -68,7 +78,7 @@ export function NewTicketPage() {
           </div>
           <h2>Ticket Submitted!</h2>
           <p>Your support request has been submitted successfully. Our team will review it shortly.</p>
-          <p className="redirect-text">Redirecting to dashboard...</p>
+          <p className="redirect-text">Redirecting to dashboard.</p>
         </div>
 
         <style>{`
@@ -136,7 +146,6 @@ export function NewTicketPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="ticket-form card">
-          {/* Category Selection */}
           <div className="form-section">
             <label className="section-label">Category</label>
             <div className="category-grid">
@@ -145,7 +154,10 @@ export function NewTicketPage() {
                   key={cat.value}
                   type="button"
                   className={`category-option ${formData.category === cat.value ? 'active' : ''}`}
-                  onClick={() => setFormData({ ...formData, category: cat.value })}
+                  onClick={() => {
+                    setError('');
+                    setFormData((prev) => ({ ...prev, category: cat.value }));
+                  }}
                 >
                   {cat.icon}
                   <span>{cat.label}</span>
@@ -154,7 +166,6 @@ export function NewTicketPage() {
             </div>
           </div>
 
-          {/* Subject */}
           <div className="input-group">
             <label htmlFor="subject" className="input-label">
               Subject *
@@ -165,12 +176,14 @@ export function NewTicketPage() {
               className="input"
               placeholder="Brief summary of your issue"
               value={formData.subject}
-              onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+              onChange={(e) => {
+                setError('');
+                setFormData((prev) => ({ ...prev, subject: e.target.value }));
+              }}
               required
             />
           </div>
 
-          {/* Description */}
           <div className="input-group">
             <label htmlFor="description" className="input-label">
               Description *
@@ -178,15 +191,17 @@ export function NewTicketPage() {
             <textarea
               id="description"
               className="input textarea"
-              placeholder="Please provide as much detail as possible about your issue..."
+              placeholder="Please provide as much detail as possible about your issue."
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) => {
+                setError('');
+                setFormData((prev) => ({ ...prev, description: e.target.value }));
+              }}
               required
               rows={5}
             />
           </div>
 
-          {/* Priority */}
           <div className="form-section">
             <label className="section-label">Priority</label>
             <div className="priority-options">
@@ -200,9 +215,13 @@ export function NewTicketPage() {
                     name="priority"
                     value={pri.value}
                     checked={formData.priority === pri.value}
-                    onChange={(e) =>
-                      setFormData({ ...formData, priority: e.target.value as TicketPriority })
-                    }
+                    onChange={(e) => {
+                      setError('');
+                      setFormData((prev) => ({
+                        ...prev,
+                        priority: e.target.value as TicketPriority,
+                      }));
+                    }}
                   />
                   <div className="priority-content">
                     <span className={`priority-indicator ${pri.value}`} />
@@ -216,24 +235,31 @@ export function NewTicketPage() {
             </div>
           </div>
 
-          {/* Submit */}
+          {error && <div className="error-banner">{error}</div>}
+
           <div className="form-actions">
             <button
               type="button"
               onClick={() => navigate('/dashboard')}
               className="btn btn-secondary"
+              disabled={isSubmitting}
             >
               Cancel
             </button>
+
             <button
               type="submit"
               className="btn btn-primary btn-lg"
-              disabled={isSubmitting || !formData.subject || !formData.description}
+              disabled={
+                isSubmitting ||
+                formData.subject.trim().length < 3 ||
+                formData.description.trim().length < 5
+              }
             >
               {isSubmitting ? (
                 <>
                   <Loader2 size={20} className="animate-spin" />
-                  Submitting...
+                  Submitting.
                 </>
               ) : (
                 <>
@@ -286,131 +312,126 @@ export function NewTicketPage() {
         .section-label {
           font-size: var(--text-sm);
           font-weight: 600;
-          color: var(--text-secondary);
+          color: var(--text-primary);
         }
 
         .category-grid {
           display: grid;
-          grid-template-columns: repeat(5, 1fr);
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: var(--space-3);
         }
 
         .category-option {
           display: flex;
-          flex-direction: column;
           align-items: center;
-          gap: var(--space-2);
+          gap: var(--space-3);
           padding: var(--space-4);
-          background: var(--surface-1);
-          border: 2px solid var(--border-subtle);
           border-radius: var(--radius-lg);
+          border: 1px solid var(--border-subtle);
+          background: var(--surface-1);
           color: var(--text-secondary);
-          font-size: var(--text-sm);
-          font-weight: 500;
           cursor: pointer;
           transition: all var(--transition-base);
         }
 
         .category-option:hover {
-          border-color: var(--border-default);
-          color: var(--text-primary);
+          transform: translateY(-1px);
+          border-color: var(--border-strong);
         }
 
         .category-option.active {
-          border-color: var(--primary-500);
-          background: rgba(6, 182, 212, 0.1);
-          color: var(--primary-400);
+          border-color: rgba(59, 130, 246, 0.5);
+          background: rgba(59, 130, 246, 0.12);
+          color: var(--text-primary);
         }
 
         .priority-options {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-2);
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: var(--space-3);
         }
 
         .priority-option {
-          display: block;
+          display: flex;
+          gap: var(--space-3);
+          padding: var(--space-4);
+          border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-lg);
+          background: var(--surface-1);
           cursor: pointer;
+          transition: all var(--transition-base);
+        }
+
+        .priority-option.active {
+          border-color: rgba(59, 130, 246, 0.5);
+          background: rgba(59, 130, 246, 0.12);
         }
 
         .priority-option input {
-          display: none;
+          margin-top: 4px;
         }
 
         .priority-content {
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           gap: var(--space-3);
-          padding: var(--space-4);
-          background: var(--surface-1);
-          border: 2px solid var(--border-subtle);
-          border-radius: var(--radius-lg);
-          transition: all var(--transition-base);
-        }
-
-        .priority-option:hover .priority-content {
-          border-color: var(--border-default);
-        }
-
-        .priority-option.active .priority-content {
-          border-color: var(--primary-500);
-          background: rgba(6, 182, 212, 0.05);
+          flex: 1;
         }
 
         .priority-indicator {
-          width: 12px;
-          height: 12px;
-          border-radius: 50%;
-        }
-
-        .priority-indicator.low { background: var(--success-500); }
-        .priority-indicator.medium { background: var(--warning-500); }
-        .priority-indicator.high { background: var(--error-500); }
-        .priority-indicator.critical {
-          background: var(--error-600);
-          box-shadow: 0 0 10px var(--error-500);
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          margin-top: 6px;
+          background: var(--text-tertiary);
         }
 
         .priority-text {
           display: flex;
           flex-direction: column;
+          gap: 2px;
         }
 
         .priority-label {
           font-weight: 600;
           color: var(--text-primary);
+          font-size: var(--text-sm);
         }
 
         .priority-desc {
           font-size: var(--text-xs);
-          color: var(--text-tertiary);
+          color: var(--text-secondary);
+        }
+
+        .error-banner {
+          padding: var(--space-3) var(--space-4);
+          background: rgba(239, 68, 68, 0.15);
+          border: 1px solid rgba(239, 68, 68, 0.3);
+          border-radius: var(--radius-md);
+          color: var(--error-400);
+          font-size: var(--text-sm);
         }
 
         .form-actions {
           display: flex;
           justify-content: flex-end;
-          gap: var(--space-4);
-          padding-top: var(--space-4);
-          border-top: 1px solid var(--border-subtle);
+          gap: var(--space-3);
+          align-items: center;
         }
 
-        @media (max-width: 768px) {
-          .category-grid {
-            grid-template-columns: repeat(3, 1fr);
-          }
+        .textarea {
+          min-height: 120px;
+          resize: vertical;
         }
 
-        @media (max-width: 480px) {
+        @media (max-width: 520px) {
           .category-grid {
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 1fr;
           }
 
           .form-actions {
-            flex-direction: column;
-          }
-
-          .form-actions button {
-            width: 100%;
+            flex-direction: column-reverse;
+            align-items: stretch;
           }
         }
       `}</style>

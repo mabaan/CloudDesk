@@ -1,47 +1,53 @@
-import { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { useTickets } from '../contexts/TicketContext';
-import { TicketCard } from '../components/TicketCard';
-import type { TicketStatus } from '../types';
-import { Search, Filter } from 'lucide-react';
+import { useMemo, useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
+import { useTickets } from "../contexts/TicketContext";
+import { TicketCard } from "../components/TicketCard";
+import type { TicketStatus } from "../types";
+import { Search, Filter, Loader2 } from "lucide-react";
 
-type FilterType = 'all' | TicketStatus;
+type FilterType = "all" | TicketStatus;
 
 export function AllTicketsPage() {
   const { user } = useAuth();
-  const { tickets, updateTicketStatus, assignTicket, addComment } = useTickets();
-  const [filter, setFilter] = useState<FilterType>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const { tickets, isLoading, updateTicketStatus, assignTicket } = useTickets();
 
-  const filteredTickets = tickets
-    .filter((t) => filter === 'all' || t.status === filter)
-    .filter(
-      (t) =>
-        searchQuery === '' ||
-        t.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.createdByName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredTickets = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+
+    return tickets
+      .filter((t) => filter === "all" || t.status === filter)
+      .filter((t) => {
+        if (!q) return true;
+
+        const subject = (t.subject || "").toLowerCase();
+        const id = (t.id || "").toLowerCase();
+        const createdByName = (t.createdByName || "").toLowerCase();
+
+        return subject.includes(q) || id.includes(q) || createdByName.includes(q);
+      });
+  }, [tickets, filter, searchQuery]);
 
   const handleAssignToMe = async (ticketId: string) => {
-    if (user) {
-      await assignTicket(ticketId, user.id, user.name);
-    }
+    if (!user) return;
+
+    // Current backend does not support assignment to arbitrary agents.
+    // TicketContext treats "assign to me" as moving to in_progress for the current agent.
+    await assignTicket(ticketId, user.username, user.username);
   };
 
-  const handleStatusChange = async (ticketId: string, status: TicketStatus, note?: string) => {
+  const handleStatusChange = async (ticketId: string, status: TicketStatus) => {
+    // Backend only supports OPEN -> IN_PROGRESS -> RESOLVED transitions.
     await updateTicketStatus(ticketId, status);
-    if (note && note.trim()) {
-      await addComment(ticketId, note.trim());
-    }
   };
 
   const filters: { key: FilterType; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'open', label: 'Open' },
-    { key: 'in_progress', label: 'In Progress' },
-    { key: 'resolved', label: 'Resolved' },
-    { key: 'closed', label: 'Closed' },
+    { key: "all", label: "All" },
+    { key: "open", label: "Open" },
+    { key: "in_progress", label: "In Progress" },
+    { key: "resolved", label: "Resolved" }
   ];
 
   return (
@@ -51,6 +57,7 @@ export function AllTicketsPage() {
           <h2 className="heading-3">All Tickets</h2>
           <span className="ticket-count">{filteredTickets.length} tickets</span>
         </div>
+
         <div className="header-right">
           <div className="search-box">
             <Search size={18} className="search-icon" />
@@ -69,8 +76,9 @@ export function AllTicketsPage() {
         {filters.map((f) => (
           <button
             key={f.key}
-            className={`filter-tab ${filter === f.key ? 'active' : ''}`}
+            className={`filter-tab ${filter === f.key ? "active" : ""}`}
             onClick={() => setFilter(f.key)}
+            type="button"
           >
             {f.label}
           </button>
@@ -78,24 +86,30 @@ export function AllTicketsPage() {
       </div>
 
       <div className="tickets-list">
-        {filteredTickets.length > 0 ? (
+        {isLoading ? (
+          <div className="empty-state card">
+            <Loader2 size={40} className="empty-icon animate-spin" />
+            <h4>Loading tickets</h4>
+            <p>Please wait.</p>
+          </div>
+        ) : filteredTickets.length > 0 ? (
           filteredTickets.map((ticket) => (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-                isAgent
-                onAssign={() => handleAssignToMe(ticket.id)}
-                onStatusChange={(status, note) => handleStatusChange(ticket.id, status, note)}
-              />
-            ))
+            <TicketCard
+              key={ticket.id}
+              ticket={ticket}
+              isAgent
+              onAssign={() => handleAssignToMe(ticket.id)}
+              onStatusChange={(status) => handleStatusChange(ticket.id, status)}
+            />
+          ))
         ) : (
           <div className="empty-state card">
             <Filter size={48} className="empty-icon" />
             <h4>No tickets found</h4>
             <p>
               {searchQuery
-                ? 'Try adjusting your search query'
-                : 'No tickets match the current filter'}
+                ? "Try adjusting your search query"
+                : "No tickets match the current filter"}
             </p>
           </div>
         )}

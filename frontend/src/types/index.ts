@@ -12,7 +12,7 @@ export interface User {
 // Ticket Types
 export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
-export type TicketCategory = 'hardware' | 'software' | 'network' | 'access' | 'other';
+export type TicketCategory = 'hardware' | 'software' | 'network' | 'access' | 'other' | 'general';
 
 export interface Ticket {
     id: string;
