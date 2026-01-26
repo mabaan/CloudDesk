@@ -1,0 +1,23 @@
+{
+  "name": "clouddesk-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "build": "echo \"SAM uses esbuild during sam build\"",
+    "test": "echo \"no tests\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.11.30",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.5.4"
+  }
+}
