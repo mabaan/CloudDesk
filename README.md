@@ -21,8 +21,8 @@ CloudDesk is a modern IT support ticketing UI built with React and Vite. It repr
   - Pages in `src/pages` deliver the main flows: login, user dashboard, new ticket, my tickets, agent dashboard, all tickets
 - Styling lives in `src/index.css` with design tokens, glass surfaces, and animation helpers loaded by `index.html` via Google Fonts (Inter and Outfit)
 
-## Planned AWS PoC alignment (from AWS CloudDesk-1.pdf)
-- Delivery: Amplify Hosting (preferred) or S3 static site, optional CloudFront
+## AWS Hosting
+- Delivery: Amplify Hosting , CloudFront
 - Auth: Cognito User Pool with groups `users` and `agents`
 - API: API Gateway HTTP API secured with JWT authorizer
 - Compute: Node.js Lambdas for ticket operations
