@@ -58,7 +58,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       await loadUser();
-    } finally {
+    } 
+    catch (e) {
+    console.log("SIGNIN_ERROR", e);
+    throw e;
+    }
+    finally {
       setIsLoading(false);
     }
   }
