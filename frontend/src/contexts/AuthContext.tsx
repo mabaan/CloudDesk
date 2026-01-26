@@ -1,85 +1,101 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import type { ReactNode } from 'react';
-import type { User } from '../types';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import {
+  getCurrentUser,
+  fetchAuthSession,
+  signIn,
+  signOut
+} from "aws-amplify/auth";
 
-interface AuthContextType {
-    user: User | null;
-    isLoading: boolean;
-    login: (email: string, password: string, role: 'user' | 'agent') => Promise<void>;
-    logout: () => void;
-    isAuthenticated: boolean;
-}
+type Role = "user" | "agent";
+
+type AuthUser = {
+  username: string;
+  role: Role;
+};
+
+type AuthContextType = {
+  user: AuthUser | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+};
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const AUTH_STORAGE_KEY = 'clouddesk_auth';
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+  async function loadUser() {
+    try {
+      const cognitoUser = await getCurrentUser();
+      const session = await fetchAuthSession();
 
-    // Load user from localStorage on mount
-    useEffect(() => {
-        const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-        if (stored) {
-            try {
-                const userData = JSON.parse(stored);
-                setUser(userData);
-            } catch (error) {
-                console.error('Failed to parse stored auth data:', error);
-                localStorage.removeItem(AUTH_STORAGE_KEY);
-            }
-        }
-        setIsLoading(false);
-    }, []);
+      const groups =
+        session.tokens?.accessToken?.payload["cognito:groups"] ?? [];
 
-    const login = async (email: string, password: string, role: 'user' | 'agent'): Promise<void> => {
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      const role: Role =
+        Array.isArray(groups) && groups.includes("Agents") ? "agent" : "user";
 
-        // Basic validation
-        if (!email || !password) {
-            throw new Error('Email and password are required');
-        }
+      setUser({
+        username: cognitoUser.username,
+        role
+      });
+    } catch {
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
-        // Generate user data based on role
-        const newUser: User = {
-            id: `${role}_${Date.now()}`,
-            email,
-            name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-            role,
-            department: role === 'user' ? 'Engineering' : 'IT Support',
-            createdAt: new Date().toISOString(),
-        };
+  async function login(email: string, password: string) {
+    setIsLoading(true);
+    try {
+      await signIn({
+        username: email,
+        password
+      });
 
-        setUser(newUser);
-        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newUser));
-    };
+      await loadUser();
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
-    const logout = () => {
-        setUser(null);
-        localStorage.removeItem(AUTH_STORAGE_KEY);
-    };
+  async function logout() {
+    setIsLoading(true);
+    try {
+      await signOut();
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
-    const value: AuthContextType = {
+  useEffect(() => {
+    loadUser();
+  }, []);
+
+  return (
+    <AuthContext.Provider
+      value={{
         user,
+        isAuthenticated: !!user,
         isLoading,
         login,
-        logout,
-        isAuthenticated: !!user,
-    };
-
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    );
+        logout
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
-export function useAuth(): AuthContextType {
-    const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
-    }
-    return context;
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return ctx;
 }
