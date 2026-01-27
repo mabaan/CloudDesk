@@ -46,6 +46,9 @@ export function LoginPage() {
         </div>
 
         <div className="login-card glass-card animate-scale-in">
+          <div className="hero-visual placeholder-block">
+            <span className="placeholder-label">Add a login hero image here</span>
+          </div>
           <form onSubmit={handleSubmit} className="login-form">
             <div className="input-group">
               <label htmlFor="email" className="input-label">
