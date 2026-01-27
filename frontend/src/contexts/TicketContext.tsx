@@ -26,7 +26,15 @@ interface TicketContextType {
 
 const TicketContext = createContext<TicketContextType | undefined>(undefined);
 
-type ApiTicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "open" | "in_progress" | "resolved";
+type ApiTicketStatus =
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "RESOLVED"
+  | "CLOSED"
+  | "open"
+  | "in_progress"
+  | "resolved"
+  | "closed";
 
 type ApiTicket = {
   ticketId: string;
@@ -133,6 +141,7 @@ function toUiStatus(status: ApiTicketStatus | string | undefined): TicketStatus 
   if (normalized === "OPEN") return "open";
   if (normalized === "IN_PROGRESS") return "in_progress";
   if (normalized === "RESOLVED") return "resolved";
+  if (normalized === "CLOSED") return "closed";
   // Fallback: assume new tickets are open rather than resolved when unknown
   return "open";
 }
@@ -140,7 +149,8 @@ function toUiStatus(status: ApiTicketStatus | string | undefined): TicketStatus 
 function toApiStatus(status: TicketStatus): ApiTicketStatus {
   if (status === "open") return "OPEN";
   if (status === "in_progress") return "IN_PROGRESS";
-  return "RESOLVED";
+  if (status === "resolved") return "RESOLVED";
+  return "CLOSED";
 }
 
 function normalizePriority(input: string | undefined): TicketPriority {

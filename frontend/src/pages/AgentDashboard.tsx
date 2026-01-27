@@ -37,6 +37,7 @@ export function AgentDashboard() {
     open: tickets.filter((t) => t.status === 'open').length,
     inProgress: tickets.filter((t) => t.status === 'in_progress').length,
     resolved: tickets.filter((t) => t.status === 'resolved').length,
+    closed: tickets.filter((t) => t.status === 'closed').length,
     myAssigned: tickets.filter((t) => t.assignedTo === user?.username).length,
   };
 
@@ -58,6 +59,7 @@ export function AgentDashboard() {
     { key: 'open', label: 'Open', count: stats.open },
     { key: 'in_progress', label: 'In Progress', count: stats.inProgress },
     { key: 'resolved', label: 'Resolved', count: stats.resolved },
+    { key: 'closed', label: 'Closed', count: stats.closed },
   ];
 
   return (
