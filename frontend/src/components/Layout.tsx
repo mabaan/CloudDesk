@@ -81,7 +81,7 @@ export function Layout({ children }: LayoutProps) {
               {isAgent ? <Headphones size={18} /> : <User size={18} />}
             </div>
             <div className="user-info">
-              <span className="user-name">{user?.name}</span>
+                <span className="user-name">{user?.username}</span>
               <span className="user-role">
                 {isAgent ? 'Support Agent' : 'Employee'}
               </span>

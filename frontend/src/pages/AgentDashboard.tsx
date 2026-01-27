@@ -37,12 +37,12 @@ export function AgentDashboard() {
     open: tickets.filter((t) => t.status === 'open').length,
     inProgress: tickets.filter((t) => t.status === 'in_progress').length,
     resolved: tickets.filter((t) => t.status === 'resolved').length,
-    myAssigned: tickets.filter((t) => t.assignedTo === user?.id).length,
+    myAssigned: tickets.filter((t) => t.assignedTo === user?.username).length,
   };
 
   const handleAssignToMe = async (ticketId: string) => {
     if (user) {
-      await assignTicket(ticketId, user.id, user.name);
+      await assignTicket(ticketId, user.username, user.username);
     }
   };
 

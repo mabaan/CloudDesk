@@ -1,4 +1,5 @@
 
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTickets } from '../contexts/TicketContext';
@@ -15,18 +16,22 @@ import {
 export function UserDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tickets } = useTickets();
+  const { tickets, refreshMyTickets } = useTickets();
 
-  // Get user's tickets
-  const userTickets = tickets.filter((t) => t.createdBy === user?.id);
-  const recentTickets = userTickets.slice(0, 5); // Show recent for this user
+  // Always load the latest tickets for this user when the dashboard mounts.
+  useEffect(() => {
+    refreshMyTickets().catch(() => {});
+  }, []);
+
+  // Use the tickets fetched for this user directly.
+  const recentTickets = tickets.slice(0, 3);
 
   // Calculate stats
   const stats = {
-    total: userTickets.length,
-    open: userTickets.filter((t) => t.status === 'open').length,
-    inProgress: userTickets.filter((t) => t.status === 'in_progress').length,
-    resolved: userTickets.filter((t) => t.status === 'resolved' || t.status === 'closed').length,
+    total: tickets.length,
+    open: tickets.filter((t) => t.status === 'open').length,
+    inProgress: tickets.filter((t) => t.status === 'in_progress').length,
+    resolved: tickets.filter((t) => t.status === 'resolved' || t.status === 'closed').length,
   };
 
   return (
@@ -35,7 +40,7 @@ export function UserDashboard() {
       <div className="welcome-section animate-slide-down">
         <div className="welcome-content">
           <h2 className="heading-2">
-            Welcome back, <span className="text-gradient">{user?.name}</span>
+            Welcome back, <span className="text-gradient">{user?.username}</span>
           </h2>
           <p className="welcome-subtitle">
             Need help with something? Submit a ticket and we'll get right on it.

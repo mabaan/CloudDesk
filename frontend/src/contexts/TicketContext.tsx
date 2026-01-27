@@ -1,20 +1,23 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import type { Ticket, TicketFormData, TicketStatus } from "../types";
+import type {
+  Ticket,
+  TicketFormData,
+  TicketStatus,
+  TicketPriority,
+  TicketCategory
+} from "../types";
 import { useAuth } from "./AuthContext";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 interface TicketContextType {
   tickets: Ticket[];
   isLoading: boolean;
-
+  refreshMyTickets: () => Promise<void>;
   createTicket: (data: TicketFormData) => Promise<Ticket>;
   updateTicketStatus: (ticketId: string, status: TicketStatus) => Promise<void>;
-
-  // Not supported by backend yet, kept for UI compatibility
   assignTicket: (ticketId: string, agentId: string, agentName: string) => Promise<void>;
   addComment: (ticketId: string, content: string) => Promise<void>;
-
   getTicketById: (ticketId: string) => Ticket | undefined;
   getUserTickets: () => Ticket[];
   getAgentTickets: () => Ticket[];
@@ -23,52 +26,36 @@ interface TicketContextType {
 
 const TicketContext = createContext<TicketContextType | undefined>(undefined);
 
-type ApiTicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED";
+type ApiTicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "open" | "in_progress" | "resolved";
 
 type ApiTicket = {
   ticketId: string;
   title?: string;
   subject?: string;
   description?: string;
+  priority?: string;
+  category?: string;
   status: ApiTicketStatus;
   createdAt?: string;
   updatedAt?: string;
   ownerSub?: string;
 };
 
-type ApiListTicketsResponse = { tickets?: ApiTicket[]; items?: ApiTicket[] };
-
-// Some backends return { ticketId, status, createdAt }
-type ApiCreateTicketResponseA = {
-  ticketId: string;
-  status: ApiTicketStatus;
-  createdAt: string;
-};
-
-// Some backends return { ticket: {...} }
-type ApiCreateTicketResponseB = {
-  ticket: ApiTicket;
-};
-
 function getApiBaseUrl(): string {
   const base = import.meta.env.VITE_API_BASE_URL as string | undefined;
   if (!base) {
-    throw new Error("VITE_API_BASE_URL is missing. Set it in frontend/.env or frontend/.env.local");
+    throw new Error("VITE_API_BASE_URL is missing. Set it in frontend/.env (or .env.local)");
   }
   return base.replace(/\/+$/, "");
 }
 
-async function getJwtToken(): Promise<string> {
+async function getAccessToken(): Promise<string> {
   const session = await fetchAuthSession();
-
-  // Cognito User Pool authorizers most commonly expect the ID token.
-  const idToken = session.tokens?.idToken?.toString();
-  if (idToken) return idToken;
-
-  const accessToken = session.tokens?.accessToken?.toString();
-  if (accessToken) return accessToken;
-
-  throw new Error("Not authenticated (no token). Please log in again.");
+  const token = session.tokens?.accessToken?.toString();
+  if (!token) {
+    throw new Error("Not authenticated (no access token). Please log in again.");
+  }
+  return token;
 }
 
 function safeJsonParse(text: string): any {
@@ -79,12 +66,31 @@ function safeJsonParse(text: string): any {
   }
 }
 
-async function apiRequest<T>(path: string, options: RequestInit & { json?: any } = {}): Promise<T> {
+function extractErrorMessage(data: any, fallback: string): string {
+  if (!data) return fallback;
+  return (
+    data.message ||
+    data.error ||
+    data.errors?.[0]?.message ||
+    fallback
+  );
+}
+
+function extractRequestId(data: any): string | undefined {
+  if (!data) return undefined;
+  return data.requestId || data.requestID || data.request_id;
+}
+
+async function apiRequest<T>(
+  path: string,
+  options: RequestInit & { json?: any } = {}
+): Promise<T> {
   const baseUrl = getApiBaseUrl();
-  const token = await getJwtToken();
+  const token = await getAccessToken();
 
   const headers = new Headers(options.headers || {});
   headers.set("Authorization", `Bearer ${token}`);
+  headers.set("Accept", "application/json");
 
   if (options.json !== undefined) {
     headers.set("Content-Type", "application/json");
@@ -92,44 +98,43 @@ async function apiRequest<T>(path: string, options: RequestInit & { json?: any }
 
   const url = `${baseUrl}${path}`;
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      ...options,
-      headers,
-      body: options.json !== undefined ? JSON.stringify(options.json) : options.body
-    });
-  } catch (e) {
-    console.log("API_NETWORK_ERROR", { url, error: e });
-    throw new Error("Network error calling API. Check your internet, CORS, and API URL.");
-  }
+  const res = await fetch(url, {
+    ...options,
+    headers,
+    body: options.json !== undefined ? JSON.stringify(options.json) : options.body
+  });
 
   const text = await res.text();
   const data = text ? safeJsonParse(text) : null;
 
   if (!res.ok) {
-    const message =
-      (data && (data.message || data.error)) ||
-      `Request failed: ${res.status} ${res.statusText}`;
+    const fallback = `Request failed: ${res.status} ${res.statusText}`;
+    const msg = extractErrorMessage(data, fallback);
+    const requestId = extractRequestId(data);
 
     console.log("API_ERROR", {
       url,
       method: options.method || "GET",
       status: res.status,
-      statusText: res.statusText,
-      body: data ?? text
+      body: data
     });
 
-    throw new Error(message);
+    if (requestId) {
+      throw new Error(`${msg} (requestId: ${requestId})`);
+    }
+    throw new Error(msg);
   }
 
   return data as T;
 }
 
-function toUiStatus(status: ApiTicketStatus): TicketStatus {
-  if (status === "OPEN") return "open";
-  if (status === "IN_PROGRESS") return "in_progress";
-  return "resolved";
+function toUiStatus(status: ApiTicketStatus | string | undefined): TicketStatus {
+  const normalized = (status || "").toString().trim().toUpperCase();
+  if (normalized === "OPEN") return "open";
+  if (normalized === "IN_PROGRESS") return "in_progress";
+  if (normalized === "RESOLVED") return "resolved";
+  // Fallback: assume new tickets are open rather than resolved when unknown
+  return "open";
 }
 
 function toApiStatus(status: TicketStatus): ApiTicketStatus {
@@ -138,53 +143,59 @@ function toApiStatus(status: TicketStatus): ApiTicketStatus {
   return "RESOLVED";
 }
 
-function mapApiTicketToUiTicket(api: ApiTicket, fallbacks?: { subject?: string; description?: string }): Ticket {
+function normalizePriority(input: string | undefined): TicketPriority {
+  const val = (input || "").toLowerCase();
+  if (val === "low" || val === "medium" || val === "high" || val === "critical") return val;
+  return "medium";
+}
+
+function normalizeCategory(input: string | undefined): TicketCategory {
+  const val = (input || "").toLowerCase();
+  if (
+    val === "hardware" ||
+    val === "software" ||
+    val === "network" ||
+    val === "access" ||
+    val === "other" ||
+    val === "general"
+  ) {
+    return val;
+  }
+  return "general";
+}
+
+function mapApiTicketToUiTicket(api: ApiTicket): Ticket {
   const nowIso = new Date().toISOString();
 
-  const subject = (api.title ?? api.subject ?? fallbacks?.subject ?? "").toString();
-  const description = (api.description ?? fallbacks?.description ?? "").toString();
+  const subject = (api.title || api.subject || "").trim();
+  const priority = normalizePriority(api.priority);
+  const category = normalizeCategory(api.category);
 
   return {
     id: api.ticketId,
-    subject,
-    description,
+    subject: subject || "Untitled",
+    description: api.description || "",
     status: toUiStatus(api.status),
 
-    // Backend does not store these yet, keep UI defaults
-    priority: "medium",
-    category: "general",
+    // Backend does not store these in the current implementation, so we default them
+    priority,
+    category,
 
+    // We do not have a human name from Cognito by default, so we store ownerSub or "unknown"
     createdBy: api.ownerSub || "unknown",
     createdByName: api.ownerSub || "unknown",
 
     createdAt: api.createdAt || nowIso,
     updatedAt: api.updatedAt || api.createdAt || nowIso,
-    resolvedAt: api.status === "RESOLVED" ? api.updatedAt || api.createdAt || nowIso : undefined,
+    resolvedAt: toUiStatus(api.status) === "resolved"
+      ? api.updatedAt || api.createdAt || nowIso
+      : undefined,
 
+    // Assignment and comments are not supported by the backend yet
     assignedTo: undefined,
     assignedToName: undefined,
     comments: []
   };
-}
-
-function validateCreateTicketInput(data: TicketFormData) {
-  const subject = (data.subject || "").trim();
-  const description = (data.description || "").trim();
-
-  if (subject.length < 3) {
-    throw new Error("Title is required and must be at least 3 characters");
-  }
-  if (description.length < 5) {
-    throw new Error("Description is required and must be at least 5 characters");
-  }
-
-  return { subject, description };
-}
-
-function extractList(resp: ApiListTicketsResponse): ApiTicket[] {
-  if (Array.isArray(resp?.tickets)) return resp.tickets;
-  if (Array.isArray(resp?.items)) return resp.items;
-  return [];
 }
 
 export function TicketProvider({ children }: { children: ReactNode }) {
@@ -203,27 +214,26 @@ export function TicketProvider({ children }: { children: ReactNode }) {
       console.log("REFRESH_TICKETS_START", { role: user.role, username: user.username });
 
       if (user.role === "agent") {
-        // Merge across all statuses
         const statuses: ApiTicketStatus[] = ["OPEN", "IN_PROGRESS", "RESOLVED"];
         const results = await Promise.all(
-          statuses.map((s) => apiRequest<ApiListTicketsResponse>(`/agent/tickets?status=${s}`))
+          statuses.map((s) => apiRequest<{ tickets: ApiTicket[] }>(`/agent/tickets?status=${s}`))
         );
 
-        const merged = results.flatMap((r) => extractList(r));
-        const mapped = merged.map((t) => mapApiTicketToUiTicket(t));
+        const merged = results.flatMap((r) => (Array.isArray(r?.tickets) ? r.tickets : []));
+        const mapped = merged.map(mapApiTicketToUiTicket);
 
         mapped.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-        setTickets(mapped);
 
+        setTickets(mapped);
         console.log("REFRESH_TICKETS_OK_AGENT", { count: mapped.length });
       } else {
-        const res = await apiRequest<ApiListTicketsResponse>("/tickets", { method: "GET" });
-        const apiTickets = extractList(res);
-        const mapped = apiTickets.map((t) => mapApiTicketToUiTicket(t));
+        const res = await apiRequest<{ tickets: ApiTicket[] }>("/tickets", { method: "GET" });
+        const apiTickets = Array.isArray(res?.tickets) ? res.tickets : [];
+        const mapped = apiTickets.map(mapApiTicketToUiTicket);
 
         mapped.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-        setTickets(mapped);
 
+        setTickets(mapped);
         console.log("REFRESH_TICKETS_OK_USER", { count: mapped.length });
       }
     } catch (error) {
@@ -244,43 +254,34 @@ export function TicketProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true);
     try {
-      const { subject, description } = validateCreateTicketInput(data);
+      const subject = (data.subject || "").trim();
+      const description = (data.description || "").trim();
 
-      // Send both subject and title to match either backend expectation.
+      console.log("CREATE_TICKET_START", { subject });
+
+      // Important: send BOTH subject and title for compatibility with backend variants.
       const payload = {
         subject,
         title: subject,
         description,
+
+        // Optional fields (backend can ignore safely)
         priority: data.priority,
         category: data.category
       };
 
-      console.log("CREATE_TICKET_START", { subjectLength: subject.length, descriptionLength: description.length });
-
-      const res = await apiRequest<ApiCreateTicketResponseA | ApiCreateTicketResponseB | ApiTicket>("/tickets", {
+      const res = await apiRequest<{ ticket: ApiTicket } | ApiTicket>("/tickets", {
         method: "POST",
         json: payload
       });
 
-      let createdUi: Ticket;
+      const apiTicket = (res as any)?.ticket ? (res as any).ticket : (res as any);
+      const created = mapApiTicketToUiTicket(apiTicket as ApiTicket);
 
-      if ((res as ApiCreateTicketResponseB).ticket) {
-        const t = (res as ApiCreateTicketResponseB).ticket;
-        createdUi = mapApiTicketToUiTicket(t, { subject, description });
-      } else if ((res as ApiCreateTicketResponseA).ticketId) {
-        const r = res as ApiCreateTicketResponseA;
-        createdUi = mapApiTicketToUiTicket(
-          { ticketId: r.ticketId, status: r.status, createdAt: r.createdAt },
-          { subject, description }
-        );
-      } else {
-        createdUi = mapApiTicketToUiTicket(res as ApiTicket, { subject, description });
-      }
-
-      console.log("CREATE_TICKET_OK", createdUi);
+      console.log("CREATE_TICKET_OK", created);
 
       await refreshTicketsForCurrentUser();
-      return createdUi;
+      return created;
     } finally {
       setIsLoading(false);
     }
@@ -294,17 +295,15 @@ export function TicketProvider({ children }: { children: ReactNode }) {
 
     setIsLoading(true);
     try {
-      const apiStatus = toApiStatus(status);
+      console.log("UPDATE_TICKET_STATUS_START", { ticketId, status });
 
-      console.log("UPDATE_TICKET_STATUS_START", { ticketId, apiStatus });
-
-      // Send both keys to match either backend handler style
+      // Some backends expect "status", some expect "newStatus". Send both.
       await apiRequest(`/agent/tickets/${ticketId}`, {
         method: "PATCH",
-        json: { newStatus: apiStatus, status: apiStatus }
+        json: { newStatus: toApiStatus(status), status: toApiStatus(status) }
       });
 
-      console.log("UPDATE_TICKET_STATUS_OK", { ticketId, apiStatus });
+      console.log("UPDATE_TICKET_STATUS_OK", { ticketId, status });
 
       await refreshTicketsForCurrentUser();
     } finally {
@@ -320,7 +319,6 @@ export function TicketProvider({ children }: { children: ReactNode }) {
 
     console.log("ASSIGN_TICKET_REQUEST", { ticketId, agentId, agentName, current: user.username });
 
-    // Backend has no assignment support yet. Treat "assign" as moving to IN_PROGRESS.
     if (agentId && agentId !== user.username) {
       throw new Error("Assignment to other agents is not supported yet");
     }
@@ -353,29 +351,27 @@ export function TicketProvider({ children }: { children: ReactNode }) {
     return tickets;
   };
 
-  const value: TicketContextType = useMemo(
-    () => ({
-      tickets,
-      isLoading,
-      createTicket,
-      updateTicketStatus,
-      assignTicket,
-      addComment,
-      getTicketById,
-      getUserTickets,
-      getAgentTickets,
-      getAllTickets
-    }),
-    [tickets, isLoading]
-  );
+  const value: TicketContextType = {
+    tickets,
+    isLoading,
+    refreshMyTickets: refreshTicketsForCurrentUser,
+    createTicket,
+    updateTicketStatus,
+    assignTicket,
+    addComment,
+    getTicketById,
+    getUserTickets,
+    getAgentTickets,
+    getAllTickets
+  };
 
   return <TicketContext.Provider value={value}>{children}</TicketContext.Provider>;
 }
 
-export function useTickets() {
-  const ctx = useContext(TicketContext);
-  if (!ctx) {
-    throw new Error("useTickets must be used within TicketProvider");
+export function useTickets(): TicketContextType {
+  const context = useContext(TicketContext);
+  if (context === undefined) {
+    throw new Error("useTickets must be used within a TicketProvider");
   }
-  return ctx;
+  return context;
 }
