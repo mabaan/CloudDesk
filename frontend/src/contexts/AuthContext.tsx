@@ -10,6 +10,8 @@ type Role = "user" | "agent";
 
 type AuthUser = {
   username: string;
+  email?: string;
+  displayName?: string;
   role: Role;
 };
 
@@ -35,11 +37,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const groups =
         session.tokens?.accessToken?.payload["cognito:groups"] ?? [];
 
+      const email = session.tokens?.idToken?.payload?.email as string | undefined;
+      const nameClaim =
+        (session.tokens?.idToken?.payload?.name as string | undefined) ||
+        (session.tokens?.idToken?.payload?.given_name as string | undefined);
+
       const role: Role =
         Array.isArray(groups) && groups.includes("Agents") ? "agent" : "user";
 
       setUser({
         username: cognitoUser.username,
+        email,
+        displayName: nameClaim || email || cognitoUser.username,
         role
       });
     } catch {

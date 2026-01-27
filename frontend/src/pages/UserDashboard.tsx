@@ -40,7 +40,10 @@ export function UserDashboard() {
       <div className="welcome-section animate-slide-down">
         <div className="welcome-content">
           <h2 className="heading-2">
-            Welcome back, <span className="text-gradient">{user?.username}</span>
+            Welcome back,{" "}
+            <span className="text-gradient">
+              {user?.displayName || user?.email || user?.username}
+            </span>
           </h2>
           <p className="welcome-subtitle">
             Need help with something? Submit a ticket and we'll get right on it.
