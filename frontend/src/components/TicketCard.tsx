@@ -43,6 +43,7 @@ const categoryLabels: Record<string, string> = {
   network: 'Network',
   access: 'Access',
   other: 'Other',
+  general: 'General',
 };
 
 export function TicketCard({ ticket, isAgent, onAssign, onStatusChange }: TicketCardProps) {

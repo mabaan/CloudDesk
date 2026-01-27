@@ -78,10 +78,13 @@ export function Layout({ children }: LayoutProps) {
         <div className="sidebar-footer">
           <div className="user-card">
             <div className="user-avatar">
-              {isAgent ? <Headphones size={18} /> : <User size={18} />}
+              {user?.displayName?.charAt(0).toUpperCase() ||
+                user?.email?.charAt(0).toUpperCase() ||
+                user?.username?.charAt(0).toUpperCase() ||
+                (isAgent ? <Headphones size={18} /> : <User size={18} />)}
             </div>
             <div className="user-info">
-                <span className="user-name">{user?.displayName || user?.email || user?.username}</span>
+              <span className="user-name">{user?.displayName || user?.email || user?.username}</span>
               <span className="user-role">
                 {isAgent ? 'Support Agent' : 'Employee'}
               </span>
