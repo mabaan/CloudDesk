@@ -154,7 +154,3 @@ Prerequisites: Node.js 18+, npm
 - `src/pages/` route level screens for login, dashboards, ticket creation, and listings
 - `src/types/` TypeScript types for users, tickets, and stats
 - `src/index.css` design system tokens, utilities, and component styles
-
-## Notes and next steps
-- The current build is a front end only demo that mirrors the flows in the AWS PoC document but uses browser storage instead of Cognito, API Gateway, Lambda, and DynamoDB.
-- To align with the planned AWS stack, replace the mock contexts with API calls to the Lambda endpoints, wire Cognito tokens into requests, and back ticket data with the DynamoDB table described above.
