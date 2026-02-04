@@ -1,10 +1,10 @@
 # CloudDesk
 
-A demo-ready serverless IT ticketing platform built on AWS. This project demonstrates real cloud engineering skills through authentication, role-based access control, serverless APIs, and NoSQL data modeling using AWS-native services.
+A demo-ready serverless IT ticketing platform built on AWS. This project demonstrates cloud engineering skills through authentication, role-based access control, serverless APIs, and NoSQL data modeling using AWS-native services.
 
 ## Overview
 
-CloudDesk is a proof-of-concept IT support ticketing system designed to showcase end-to-end AWS serverless architecture—not to ship a full product. The focus is on secure authentication, clean API design, and proper DynamoDB access patterns.
+CloudDesk is a IT support ticketing system designed to showcase end-to-end AWS serverless architecture. The focus is on secure authentication, clean API design, and proper DynamoDB access patterns.
 
 ## Tech Stack
 
@@ -38,9 +38,6 @@ CloudDesk is a proof-of-concept IT support ticketing system designed to showcase
 ### Agent Role
 - View tickets filtered by status (e.g., OPEN)
 - Update ticket status (OPEN → IN_PROGRESS → RESOLVED)
-
-### Out of Scope
-This PoC intentionally excludes: attachments, comments, notifications, analytics, and UI polish.
 
 ## API Endpoints
 
