@@ -118,6 +118,7 @@ Resources:
             - Effect: Allow
               Action:
                 - dynamodb:TransactWriteItems
+                - dynamodb:PutItem
               Resource:
                 - !GetAtt TicketsTable.Arn
       Events:
@@ -220,6 +221,7 @@ Resources:
               Action:
                 - dynamodb:GetItem
                 - dynamodb:TransactWriteItems
+                - dynamodb:UpdateItem
               Resource:
                 - !GetAtt TicketsTable.Arn
       Events:

@@ -1,0 +1,20 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /tickets",
+  "rawPath": "/tickets",
+  "headers": { "content-type": "application/json" },
+  "requestContext": {
+    "requestId": "local-test-1",
+    "http": { "method": "POST", "path": "/tickets" },
+    "authorizer": {
+      "jwt": {
+        "claims": {
+          "sub": "00000000-0000-0000-0000-000000000000",
+          "cognito:groups": "Users"
+        }
+      }
+    }
+  },
+  "body": "{\"title\":\"Printer not working\",\"description\":\"The printer in room 401 is offline.\"}",
+  "isBase64Encoded": false
+}

@@ -3,6 +3,7 @@ import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { requireAuthenticated, authErrorToResponse } from "../lib/auth";
 import { getDdb, getTableName } from "../lib/ddb";
 import { errorResponse, jsonResponse } from "../lib/response";
+import { normalizeTicketStatus, toClientStatus } from "../lib/validate";
 
 export const handler = async (
   event: APIGatewayProxyEventV2
@@ -40,12 +41,20 @@ export const handler = async (
       })
     );
 
-    const items = (res.Items || []).map((x) => ({
-      ticketId: x.ticketId,
-      status: x.status,
-      createdAt: x.createdAt,
-      title: x.title
-    }));
+    const items = (res.Items || []).map((x) => {
+      const status = normalizeTicketStatus(x.status) ?? "OPEN";
+      return {
+        ticketId: x.ticketId,
+        status: toClientStatus(status),
+        createdAt: x.createdAt,
+        updatedAt: x.updatedAt || x.createdAt,
+        title: x.title,
+        description: x.description,
+        priority: x.priority,
+        category: x.category,
+        ownerSub: auth.userSub
+      };
+    });
 
     return jsonResponse(200, { tickets: items });
   } catch (e: any) {

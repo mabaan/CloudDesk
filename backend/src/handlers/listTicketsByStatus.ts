@@ -3,7 +3,7 @@ import { QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { requireAgent, authErrorToResponse } from "../lib/auth";
 import { getDdb, getTableName } from "../lib/ddb";
 import { errorResponse, jsonResponse } from "../lib/response";
-import { isTicketStatus } from "../lib/validate";
+import { normalizeTicketStatus, toClientStatus } from "../lib/validate";
 
 export const handler = async (
   event: APIGatewayProxyEventV2
@@ -18,11 +18,12 @@ export const handler = async (
   }
 
   const statusRaw = event.queryStringParameters?.status;
-  if (!isTicketStatus(statusRaw)) {
+  const normalizedStatus = normalizeTicketStatus(statusRaw);
+  if (!normalizedStatus) {
     return errorResponse(
       400,
       "BadRequest",
-      "Missing or invalid status. Use OPEN, IN_PROGRESS, or RESOLVED",
+      "Missing or invalid status. Use open, in_progress, or resolved",
       requestId
     );
   }
@@ -37,7 +38,8 @@ export const handler = async (
         requestId,
         route: "GET /agent/tickets",
         userSub: auth.userSub,
-        status: statusRaw
+        status: statusRaw,
+        normalizedStatus
       })
     );
 
@@ -47,7 +49,7 @@ export const handler = async (
         IndexName: gsiName,
         KeyConditionExpression: "GSI1PK = :gpk",
         ExpressionAttributeValues: {
-          ":gpk": `STATUS#${statusRaw}`
+          ":gpk": `STATUS#${normalizedStatus}`
         },
         ScanIndexForward: false
       })
@@ -56,9 +58,13 @@ export const handler = async (
     const tickets = (res.Items || []).map((x) => ({
       ticketId: x.ticketId,
       ownerSub: x.ownerSub,
-      status: x.status,
+      status: toClientStatus(normalizeTicketStatus(x.status) ?? normalizedStatus),
       createdAt: x.createdAt,
-      title: x.title
+      updatedAt: x.updatedAt || x.createdAt,
+      title: x.title,
+      description: x.description,
+      priority: x.priority,
+      category: x.category
     }));
 
     return jsonResponse(200, { tickets });

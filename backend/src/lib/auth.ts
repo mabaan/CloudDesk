@@ -1,47 +1,108 @@
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
-import { errorResponse } from "./response";
 
-export type AuthContext = {
+export class AuthError extends Error {
+  constructor(
+    public statusCode: number,
+    public code: string,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+type APIGatewayProxyEventV2WithAuth = APIGatewayProxyEventV2 & {
+  requestContext: APIGatewayProxyEventV2["requestContext"] & {
+    authorizer?: any;
+  };
+};
+
+type AuthContext = {
   userSub: string;
+  email?: string;
   groups: string[];
 };
 
-function normalizeGroups(raw: unknown): string[] {
-  if (!raw) return [];
-  if (Array.isArray(raw)) return raw.map((x) => String(x));
-  if (typeof raw === "string") return [raw];
-  return [String(raw)];
+export function requireAuthenticated(
+  event: APIGatewayProxyEventV2WithAuth
+): AuthContext {
+  const authorizer = event.requestContext.authorizer;
+
+  if (!authorizer) {
+    throw new AuthError(401, "Unauthorized", "Missing authorizer");
+  }
+
+  // HTTP API v2 (Cognito)
+  const jwtClaims = authorizer.jwt?.claims;
+
+  // REST API fallback (older)
+  const legacyClaims = authorizer.claims;
+
+  const claims = jwtClaims || legacyClaims;
+
+  if (!claims || !claims.sub) {
+    throw new AuthError(401, "Unauthorized", "Invalid token claims");
+  }
+
+  const rawGroups = claims["cognito:groups"];
+
+  let groups: string[] = [];
+  if (Array.isArray(rawGroups)) {
+    groups = rawGroups as string[];
+  } else if (typeof rawGroups === "string") {
+    const trimmed = rawGroups.trim();
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      groups = trimmed
+        .slice(1, -1)
+        .split(",")
+        .map((g) => g.replace(/['"]/g, "").trim())
+        .filter(Boolean);
+    } else {
+      groups = [trimmed];
+    }
+  }
+
+  return {
+    userSub: claims.sub,
+    email: claims.email,
+    groups
+  };
 }
 
-export function requireAuthenticated(event: APIGatewayProxyEventV2): AuthContext {
-  const claims = (event.requestContext as any)?.authorizer?.jwt?.claims;
-  const sub = claims?.sub;
-  if (!sub || typeof sub !== "string") {
-    throw new Error("UNAUTHENTICATED");
+export function requireAgent(
+  event: APIGatewayProxyEventV2WithAuth
+): AuthContext {
+  const auth = requireAuthenticated(event);
+
+  const inAgents = auth.groups.some((g) => g.toLowerCase() === "agents");
+
+  if (!inAgents) {
+    throw new AuthError(403, "Forbidden", "Agent access required");
   }
 
-  const groupsRaw = claims?.["cognito:groups"];
-  const groups = normalizeGroups(groupsRaw);
-
-  return { userSub: sub, groups };
+  return auth;
 }
 
-export function requireAgent(event: APIGatewayProxyEventV2): AuthContext {
-  const ctx = requireAuthenticated(event);
-  if (!ctx.groups.includes("Agents")) {
-    throw new Error("FORBIDDEN_AGENT_ONLY");
+export function authErrorToResponse(
+  err: any,
+  requestId: string
+) {
+  if (err instanceof AuthError) {
+    return {
+      statusCode: err.statusCode,
+      body: JSON.stringify({
+        error: err.code,
+        message: err.message,
+        requestId
+      })
+    };
   }
-  return ctx;
-}
 
-export function authErrorToResponse(err: unknown, requestId?: string) {
-  const msg = err instanceof Error ? err.message : String(err);
-
-  if (msg === "UNAUTHENTICATED") {
-    return errorResponse(401, "Unauthorized", "Missing or invalid auth context", requestId);
-  }
-  if (msg === "FORBIDDEN_AGENT_ONLY") {
-    return errorResponse(403, "Forbidden", "Agent role required", requestId);
-  }
-  return errorResponse(401, "Unauthorized", "Unauthorized", requestId);
+  return {
+    statusCode: 401,
+    body: JSON.stringify({
+      error: "Unauthorized",
+      message: "Authentication failed",
+      requestId
+    })
+  };
 }

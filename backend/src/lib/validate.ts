@@ -1,7 +1,22 @@
-export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED";
+export const TICKET_STATUS_VALUES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const;
+export type TicketStatus = (typeof TICKET_STATUS_VALUES)[number];
+export type ClientTicketStatus = "open" | "in_progress" | "resolved" | "closed";
 
-export function isTicketStatus(x: any): x is TicketStatus {
-  return x === "OPEN" || x === "IN_PROGRESS" || x === "RESOLVED";
+export function normalizeTicketStatus(input: unknown): TicketStatus | null {
+  if (typeof input !== "string") return null;
+
+  const normalized = input.trim().replace(/[\s-]+/g, "_").toUpperCase();
+  return TICKET_STATUS_VALUES.includes(normalized as TicketStatus)
+    ? (normalized as TicketStatus)
+    : null;
+}
+
+export function isTicketStatus(x: unknown): x is TicketStatus {
+  return normalizeTicketStatus(x) !== null;
+}
+
+export function toClientStatus(status: TicketStatus): ClientTicketStatus {
+  return status.toLowerCase() as ClientTicketStatus;
 }
 
 export function validateTitle(title: unknown) {
@@ -27,5 +42,6 @@ export function validateDescription(description: unknown) {
 export function validateStatusTransition(current: TicketStatus, next: TicketStatus) {
   if (current === "OPEN" && next === "IN_PROGRESS") return null;
   if (current === "IN_PROGRESS" && next === "RESOLVED") return null;
+  if (current === "RESOLVED" && next === "CLOSED") return null;
   return `invalid transition ${current} -> ${next}`;
 }

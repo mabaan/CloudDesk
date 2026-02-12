@@ -4,7 +4,12 @@ import { v4 as uuidv4 } from "uuid";
 import { requireAuthenticated, authErrorToResponse } from "../lib/auth";
 import { getDdb, getTableName } from "../lib/ddb";
 import { errorResponse, jsonResponse } from "../lib/response";
-import { validateDescription, validateTitle } from "../lib/validate";
+import {
+  validateDescription,
+  validateTitle,
+  TicketStatus,
+  toClientStatus
+} from "../lib/validate";
 
 export const handler = async (
   event: APIGatewayProxyEventV2
@@ -33,7 +38,9 @@ export const handler = async (
 
   const ticketId = uuidv4();
   const createdAt = new Date().toISOString();
-  const status = "OPEN";
+  const status: TicketStatus = "OPEN";
+  const priority = (body?.priority as string) || "medium";
+  const category = (body?.category as string) || "general";
 
   const tableName = getTableName();
   const ddb = getDdb();
@@ -47,6 +54,8 @@ export const handler = async (
     createdAt,
     title: body.title,
     description: body.description,
+    priority,
+    category,
     GSI1PK: `STATUS#${status}`,
     GSI1SK: `CREATED#${createdAt}#TICKET#${ticketId}`
   };
@@ -57,7 +66,10 @@ export const handler = async (
     ticketId,
     status,
     createdAt,
-    title: body.title
+    title: body.title,
+    priority,
+    category,
+    description: body.description
   };
 
   try {
@@ -90,7 +102,19 @@ export const handler = async (
       })
     );
 
-    return jsonResponse(201, { ticketId, status, createdAt });
+    return jsonResponse(201, {
+      ticket: {
+        ticketId,
+        status: toClientStatus(status),
+        createdAt,
+        updatedAt: createdAt,
+        title: body.title,
+        description: body.description,
+        priority,
+        category,
+        ownerSub: auth.userSub
+      }
+    });
   } catch (e: any) {
     console.log(
       JSON.stringify({

@@ -9,6 +9,8 @@ import { AgentDashboard } from './pages/AgentDashboard';
 import { NewTicketPage } from './pages/NewTicketPage';
 import { MyTicketsPage } from './pages/MyTicketsPage';
 import { AllTicketsPage } from './pages/AllTicketsPage';
+const { logout } = useAuth();
+<button onClick={logout}>Sign out</button>
 
 // Protected Route Component
 function ProtectedRoute({

@@ -3,14 +3,19 @@ import { GetCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { requireAgent, authErrorToResponse } from "../lib/auth";
 import { getDdb, getTableName } from "../lib/ddb";
 import { errorResponse, jsonResponse } from "../lib/response";
-import { isTicketStatus, validateStatusTransition, TicketStatus } from "../lib/validate";
+import {
+  normalizeTicketStatus,
+  validateStatusTransition,
+  TicketStatus,
+  toClientStatus
+} from "../lib/validate";
 
 type TicketMeta = {
   PK: string;
   SK: string;
   ticketId: string;
   ownerSub: string;
-  status: TicketStatus;
+  status: string;
   createdAt: string;
   title: string;
   description: string;
@@ -40,12 +45,12 @@ export const handler = async (
     return errorResponse(400, "BadRequest", "Invalid JSON body", requestId);
   }
 
-  const nextStatusRaw = body?.status;
-  if (!isTicketStatus(nextStatusRaw)) {
+  const nextStatus = normalizeTicketStatus(body?.status);
+  if (!nextStatus) {
     return errorResponse(
       400,
       "BadRequest",
-      "Missing or invalid status. Use OPEN, IN_PROGRESS, or RESOLVED",
+      "Missing or invalid status. Use open, in_progress, or resolved",
       requestId
     );
   }
@@ -60,7 +65,8 @@ export const handler = async (
         route: "PATCH /agent/tickets/{ticketId}",
         userSub: auth.userSub,
         ticketId,
-        nextStatus: nextStatusRaw
+        nextStatus: body?.status,
+        normalizedStatus: nextStatus
       })
     );
 
@@ -78,7 +84,12 @@ export const handler = async (
       return errorResponse(404, "NotFound", "Ticket not found", requestId);
     }
 
-    const transitionErr = validateStatusTransition(meta.status, nextStatusRaw);
+    const currentStatus = normalizeTicketStatus(meta.status);
+    if (!currentStatus) {
+      return errorResponse(500, "ServerError", "Ticket has invalid status", requestId);
+    }
+
+    const transitionErr = validateStatusTransition(currentStatus, nextStatus);
     if (transitionErr) {
       return errorResponse(400, "BadRequest", transitionErr, requestId);
     }
@@ -104,9 +115,9 @@ export const handler = async (
                 "#s": "status"
               },
               ExpressionAttributeValues: {
-                ":s": nextStatusRaw,
+                ":s": nextStatus,
                 ":expected": meta.status,
-                ":gpk": `STATUS#${nextStatusRaw}`,
+                ":gpk": `STATUS#${nextStatus}`,
                 ":gsk": `CREATED#${meta.createdAt}#TICKET#${ticketId}`,
                 ":u": updatedAt
               }
@@ -122,7 +133,7 @@ export const handler = async (
                 "#s": "status"
               },
               ExpressionAttributeValues: {
-                ":s": nextStatusRaw
+                ":s": nextStatus
               }
             }
           }
@@ -130,7 +141,7 @@ export const handler = async (
       })
     );
 
-    return jsonResponse(200, { ticketId, status: nextStatusRaw, updatedAt });
+    return jsonResponse(200, { ticketId, status: toClientStatus(nextStatus), updatedAt });
   } catch (e: any) {
     console.log(
       JSON.stringify({
